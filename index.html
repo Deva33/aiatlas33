@@ -1,0 +1,37 @@
+// Replace the form submit section in <script> with this:
+
+document.getElementById('agentForm').onsubmit = async (e) => {
+    e.preventDefault();
+
+    const password = prompt("🔐 Enter Admin Password to save changes:");
+    if (!password) return;
+
+    const id = document.getElementById('agentId').value;
+    const payload = { /* ... same as before */ };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `${API_BASE}/${id}` : API_BASE;
+
+    try {
+        const res = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa('admin:' + password)
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.status === 401) {
+            alert("❌ Incorrect password!");
+            return;
+        }
+        if (!res.ok) throw new Error('Failed');
+
+        alert("✅ Agent saved successfully!");
+        modal.style.display = 'none';
+        fetchAgents(document.getElementById('searchInput').value);
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+};

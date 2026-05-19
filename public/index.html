@@ -1,44 +1,560 @@
-// Replace the form submit section in <script> with this:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Atlas - Agent Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-document.getElementById('agentForm').onsubmit = async (e) => {
-    e.preventDefault();
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
 
-    const password = prompt("🔐 Enter Admin Password to save changes:");
-    if (!password) return;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
 
-    const id = document.getElementById('agentId').value;
-    const payload = {
-        name: document.getElementById('name').value,
-        llm: document.getElementById('llm').value,
-        rag: document.getElementById('rag').value,
-        description: document.getElementById('description').value,
-        capabilities: document.getElementById('capabilities').value,
-        tags: document.getElementById('tags').value
-    };
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
 
-    const method = id ? 'PUT' : 'POST';
-    const url = id ? `${API_BASE}/${id}` : API_BASE;
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
 
-    try {
-        const res = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Basic ' + btoa('admin:' + password)
-            },
-            body: JSON.stringify(payload)
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        #searchInput {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #0b7dda;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #da190b;
+        }
+
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .agent-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .agent-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+        }
+
+        .agent-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+        }
+
+        .agent-card p {
+            color: #555;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .agent-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .tag {
+            background: #e0e0e0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #333;
+        }
+
+        .agent-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .agent-actions button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.9em;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #667eea;
+        }
+
+        .close-btn {
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: white;
+        }
+
+        .empty-state h2 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2em;
+            }
+
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .search-section {
+                flex-direction: column;
+            }
+
+            #searchInput {
+                min-width: 100%;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 50% auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Atlas</h1>
+            <p>Manage and discover AI agents</p>
+        </header>
+
+        <div class="search-section">
+            <input type="text" id="searchInput" placeholder="🔍 Search agents by name, description, or tags...">
+            <button class="btn btn-primary" onclick="openModal()">➕ Add New Agent</button>
+        </div>
+
+        <div id="agentsList" class="agents-grid"></div>
+    </div>
+
+    <!-- Modal for Create/Edit Agent -->
+    <div id="agentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add New Agent</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="agentForm">
+                <input type="hidden" id="agentId">
+                
+                <div class="form-group">
+                    <label for="name">Agent Name *</label>
+                    <input type="text" id="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="llm">LLM Model *</label>
+                    <input type="text" id="llm" placeholder="e.g., GPT-4, Claude 3" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="rag">RAG Enabled</label>
+                    <select id="rag">
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" placeholder="Brief description of the agent..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="capabilities">Capabilities</label>
+                    <textarea id="capabilities" placeholder="e.g., Text generation, Code analysis, ..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="tags">Tags</label>
+                    <input type="text" id="tags" placeholder="Comma-separated tags">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/api/agents';
+        const modal = document.getElementById('agentModal');
+
+        // Open Modal
+        function openModal(agentData = null) {
+            const modalTitle = document.getElementById('modalTitle');
+            const agentId = document.getElementById('agentId');
+            
+            if (agentData) {
+                modalTitle.textContent = 'Edit Agent';
+                agentId.value = agentData.id;
+                document.getElementById('name').value = agentData.name || '';
+                document.getElementById('llm').value = agentData.llm || '';
+                document.getElementById('rag').value = agentData.rag || 'false';
+                document.getElementById('description').value = agentData.description || '';
+                document.getElementById('capabilities').value = agentData.capabilities || '';
+                document.getElementById('tags').value = agentData.tags || '';
+            } else {
+                modalTitle.textContent = 'Add New Agent';
+                agentId.value = '';
+                document.getElementById('agentForm').reset();
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        // Close Modal
+        function closeModal() {
+            modal.style.display = 'none';
+            document.getElementById('agentForm').reset();
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Form Submit Handler
+        document.getElementById('agentForm').onsubmit = async (e) => {
+            e.preventDefault();
+
+            const password = prompt("🔐 Enter Admin Password to save changes:");
+            if (!password) return;
+
+            const id = document.getElementById('agentId').value;
+            const payload = {
+                name: document.getElementById('name').value,
+                llm: document.getElementById('llm').value,
+                rag: document.getElementById('rag').value === 'true',
+                description: document.getElementById('description').value,
+                capabilities: document.getElementById('capabilities').value,
+                tags: document.getElementById('tags').value
+            };
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_BASE}/${id}` : API_BASE;
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa('admin:' + password)
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.status === 401) {
+                    alert("❌ Incorrect password!");
+                    return;
+                }
+                if (!res.ok) throw new Error('Failed to save agent');
+
+                alert("✅ Agent saved successfully!");
+                modal.style.display = 'none';
+                document.getElementById('agentForm').reset();
+                fetchAgents(document.getElementById('searchInput').value);
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        };
+
+        // Fetch and display agents
+        async function fetchAgents(searchQuery = '') {
+            const agentsList = document.getElementById('agentsList');
+            agentsList.innerHTML = '<div class="loading">⏳ Loading agents...</div>';
+
+            try {
+                let url = API_BASE;
+                if (searchQuery) {
+                    url += `?search=${encodeURIComponent(searchQuery)}`;
+                }
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to fetch agents');
+
+                const agents = await res.json();
+
+                if (!agents || agents.length === 0) {
+                    agentsList.innerHTML = `
+                        <div class="empty-state" style="grid-column: 1 / -1;">
+                            <h2>📭 No agents found</h2>
+                            <p>${searchQuery ? 'Try a different search term' : 'Create your first agent to get started!'}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                agentsList.innerHTML = agents.map(agent => `
+                    <div class="agent-card">
+                        <h3>${agent.name || 'Unnamed Agent'}</h3>
+                        <p><strong>Model:</strong> ${agent.llm || 'N/A'}</p>
+                        <p><strong>RAG:</strong> ${agent.rag ? '✅ Enabled' : '❌ Disabled'}</p>
+                        ${agent.description ? `<p>${agent.description}</p>` : ''}
+                        ${agent.capabilities ? `<p><strong>Capabilities:</strong> ${agent.capabilities}</p>` : ''}
+                        ${agent.tags ? `
+                            <div class="agent-tags">
+                                ${agent.tags.split(',').map(tag => `<span class="tag">${tag.trim()}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="agent-actions">
+                            <button class="btn btn-secondary" onclick='openModal(${JSON.stringify(agent)})'>✏️ Edit</button>
+                            <button class="btn btn-danger" onclick="deleteAgent('${agent.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                agentsList.innerHTML = `<div class="error" style="grid-column: 1 / -1;">Error: ${err.message}</div>`;
+            }
+        }
+
+        // Delete Agent
+        async function deleteAgent(agentId) {
+            if (!confirm('Are you sure you want to delete this agent?')) return;
+
+            const password = prompt("🔐 Enter Admin Password to delete:");
+            if (!password) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/${agentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('admin:' + password)
+                    }
+                });
+
+                if (res.status === 401) {
+                    alert("❌ Incorrect password!");
+                    return;
+                }
+                if (!res.ok) throw new Error('Failed to delete agent');
+
+                alert("✅ Agent deleted successfully!");
+                fetchAgents(document.getElementById('searchInput').value);
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            fetchAgents(e.target.value);
         });
 
-        if (res.status === 401) {
-            alert("❌ Incorrect password!");
-            return;
-        }
-        if (!res.ok) throw new Error('Failed to save agent');
-
-        alert("✅ Agent saved successfully!");
-        modal.style.display = 'none';
-        fetchAgents(document.getElementById('searchInput').value);
-    } catch (err) {
-        alert("Error: " + err.message);
-    }
-};
+        // Initial load
+        fetchAgents();
+    </script>
+</body>
+</html>

@@ -2,7 +2,6 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
@@ -25,15 +24,23 @@ const authenticateAdmin = (req, res, next) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
-    const password = credentials.split(':')[1]; // username is ignored
+    try {
+        const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
+        const [username, password] = credentials.split(':');
 
-    const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+        if (!password) {
+            return res.status(401).json({ error: 'Invalid credentials format' });
+        }
 
-    if (inputHash !== PASSWORD_HASH) {
-        return res.status(401).json({ error: 'Invalid password' });
+        const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+
+        if (inputHash !== PASSWORD_HASH) {
+            return res.status(401).json({ error: 'Invalid password' });
+        }
+        next();
+    } catch (err) {
+        return res.status(401).json({ error: 'Invalid authorization header' });
     }
-    next();
 };
 
 // Database
@@ -42,19 +49,21 @@ const db = new sqlite3.Database('./agents.db', (err) => {
     else console.log('✅ Connected to SQLite');
 });
 
-db.run(`
-    CREATE TABLE IF NOT EXISTS agents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        llm TEXT,
-        rag TEXT,
-        description TEXT,
-        capabilities TEXT,
-        tags TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-`);
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            llm TEXT,
+            rag TEXT,
+            description TEXT,
+            capabilities TEXT,
+            tags TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+});
 
 // ==================== PUBLIC ROUTES ====================
 app.get('/api/agents', (req, res) => {

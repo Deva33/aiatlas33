@@ -295,6 +295,86 @@
             margin-bottom: 10px;
         }
 
+        /* Custom Password Dialog */
+        .password-dialog {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .password-dialog-content {
+            background-color: white;
+            margin: 20% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.4);
+            animation: slideDown 0.3s ease;
+        }
+
+        .password-dialog-content h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        .password-dialog-content input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        .password-dialog-content input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .password-dialog-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .password-dialog-actions button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .password-dialog-actions .btn-ok {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .password-dialog-actions .btn-ok:hover {
+            background: #45a049;
+        }
+
+        .password-dialog-actions .btn-cancel {
+            background: #f44336;
+            color: white;
+        }
+
+        .password-dialog-actions .btn-cancel:hover {
+            background: #da190b;
+        }
+
         @media (max-width: 768px) {
             header h1 {
                 font-size: 2em;
@@ -315,6 +395,11 @@
             .modal-content {
                 width: 95%;
                 margin: 50% auto;
+            }
+
+            .password-dialog-content {
+                width: 95%;
+                margin: 40% auto;
             }
         }
     </style>
@@ -385,10 +470,24 @@
         </div>
     </div>
 
+    <!-- Custom Password Dialog -->
+    <div id="passwordDialog" class="password-dialog">
+        <div class="password-dialog-content">
+            <h3 id="passwordDialogTitle">🔐 Enter Admin Password</h3>
+            <input type="password" id="passwordInput" placeholder="Enter admin password" autocomplete="off">
+            <div class="password-dialog-actions">
+                <button class="btn-ok" onclick="confirmPassword()">OK</button>
+                <button class="btn-cancel" onclick="cancelPassword()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Configuration
         const API_BASE = '/api/agents';
         const modal = document.getElementById('agentModal');
+        const passwordDialog = document.getElementById('passwordDialog');
+        let pendingOperation = null;
 
         // Open Modal
         function openModal(agentData = null) {
@@ -424,51 +523,86 @@
             if (event.target === modal) {
                 closeModal();
             }
+            if (event.target === passwordDialog) {
+                cancelPassword();
+            }
+        }
+
+        // Password Dialog Functions
+        function showPasswordDialog(operationType = 'save') {
+            const title = document.getElementById('passwordDialogTitle');
+            title.textContent = operationType === 'delete' 
+                ? '🔐 Enter Admin Password to Delete' 
+                : '🔐 Enter Admin Password to Save';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('passwordInput').focus();
+            passwordDialog.style.display = 'block';
+            pendingOperation.type = operationType;
+        }
+
+        function confirmPassword() {
+            const password = document.getElementById('passwordInput').value;
+            if (!password) {
+                alert('❌ Please enter a password');
+                return;
+            }
+            passwordDialog.style.display = 'none';
+            pendingOperation.callback(password);
+        }
+
+        function cancelPassword() {
+            passwordDialog.style.display = 'none';
+            pendingOperation = null;
+            document.getElementById('passwordInput').value = '';
         }
 
         // Form Submit Handler
         document.getElementById('agentForm').onsubmit = async (e) => {
             e.preventDefault();
 
-            const password = prompt("🔐 Enter Admin Password to save changes:");
-            if (!password) return;
+            pendingOperation = {
+                type: 'save',
+                callback: async (password) => {
+                    const id = document.getElementById('agentId').value;
+                    const payload = {
+                        name: document.getElementById('name').value,
+                        llm: document.getElementById('llm').value,
+                        rag: document.getElementById('rag').value === 'true',
+                        description: document.getElementById('description').value,
+                        capabilities: document.getElementById('capabilities').value,
+                        tags: document.getElementById('tags').value
+                    };
 
-            const id = document.getElementById('agentId').value;
-            const payload = {
-                name: document.getElementById('name').value,
-                llm: document.getElementById('llm').value,
-                rag: document.getElementById('rag').value === 'true',
-                description: document.getElementById('description').value,
-                capabilities: document.getElementById('capabilities').value,
-                tags: document.getElementById('tags').value
+                    const method = id ? 'PUT' : 'POST';
+                    const url = id ? `${API_BASE}/${id}` : API_BASE;
+
+                    try {
+                        const res = await fetch(url, {
+                            method: method,
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Basic ' + btoa('admin:' + password)
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (res.status === 401) {
+                            alert("❌ Incorrect password!");
+                            return;
+                        }
+                        if (!res.ok) throw new Error('Failed to save agent');
+
+                        alert("✅ Agent saved successfully!");
+                        modal.style.display = 'none';
+                        document.getElementById('agentForm').reset();
+                        fetchAgents(document.getElementById('searchInput').value);
+                    } catch (err) {
+                        alert("Error: " + err.message);
+                    }
+                }
             };
 
-            const method = id ? 'PUT' : 'POST';
-            const url = id ? `${API_BASE}/${id}` : API_BASE;
-
-            try {
-                const res = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Basic ' + btoa('admin:' + password)
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.status === 401) {
-                    alert("❌ Incorrect password!");
-                    return;
-                }
-                if (!res.ok) throw new Error('Failed to save agent');
-
-                alert("✅ Agent saved successfully!");
-                modal.style.display = 'none';
-                document.getElementById('agentForm').reset();
-                fetchAgents(document.getElementById('searchInput').value);
-            } catch (err) {
-                alert("Error: " + err.message);
-            }
+            showPasswordDialog('save');
         };
 
         // Fetch and display agents
@@ -524,28 +658,32 @@
         async function deleteAgent(agentId) {
             if (!confirm('Are you sure you want to delete this agent?')) return;
 
-            const password = prompt("🔐 Enter Admin Password to delete:");
-            if (!password) return;
+            pendingOperation = {
+                type: 'delete',
+                callback: async (password) => {
+                    try {
+                        const res = await fetch(`${API_BASE}/${agentId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': 'Basic ' + btoa('admin:' + password)
+                            }
+                        });
 
-            try {
-                const res = await fetch(`${API_BASE}/${agentId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': 'Basic ' + btoa('admin:' + password)
+                        if (res.status === 401) {
+                            alert("❌ Incorrect password!");
+                            return;
+                        }
+                        if (!res.ok) throw new Error('Failed to delete agent');
+
+                        alert("✅ Agent deleted successfully!");
+                        fetchAgents(document.getElementById('searchInput').value);
+                    } catch (err) {
+                        alert("Error: " + err.message);
                     }
-                });
-
-                if (res.status === 401) {
-                    alert("❌ Incorrect password!");
-                    return;
                 }
-                if (!res.ok) throw new Error('Failed to delete agent');
+            };
 
-                alert("✅ Agent deleted successfully!");
-                fetchAgents(document.getElementById('searchInput').value);
-            } catch (err) {
-                alert("Error: " + err.message);
-            }
+            showPasswordDialog('delete');
         }
 
         // Search functionality

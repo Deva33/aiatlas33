@@ -7,7 +7,14 @@ document.getElementById('agentForm').onsubmit = async (e) => {
     if (!password) return;
 
     const id = document.getElementById('agentId').value;
-    const payload = { /* ... same as before */ };
+    const payload = {
+        name: document.getElementById('name').value,
+        llm: document.getElementById('llm').value,
+        rag: document.getElementById('rag').value,
+        description: document.getElementById('description').value,
+        capabilities: document.getElementById('capabilities').value,
+        tags: document.getElementById('tags').value
+    };
 
     const method = id ? 'PUT' : 'POST';
     const url = id ? `${API_BASE}/${id}` : API_BASE;
@@ -26,7 +33,7 @@ document.getElementById('agentForm').onsubmit = async (e) => {
             alert("❌ Incorrect password!");
             return;
         }
-        if (!res.ok) throw new Error('Failed');
+        if (!res.ok) throw new Error('Failed to save agent');
 
         alert("✅ Agent saved successfully!");
         modal.style.display = 'none';

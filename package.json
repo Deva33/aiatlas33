@@ -10,5 +10,8 @@
     "express": "^4.19.2",
     "sqlite3": "^5.1.7",
     "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   }
 }
